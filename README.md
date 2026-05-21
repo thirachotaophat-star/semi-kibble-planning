@@ -366,3 +366,213 @@ Engine นี้จะ allocate แบบ FIFO โดยยึดหน่วย
 - ปิดเคสได้เฉพาะ 48 bag (240 PCS)
 - อนุญาตช่วยเติมเฉพาะ MFG/EXP เดียวกัน และไม่ละเมิดกฎ Shift/MC
 - กรณี 46/47 bag จะพยายามเติมให้ครบเท่านั้น; เติมไม่ครบ = ไม่ allocate
+
+
+## 9) Excel Workbook Test Structure (Semi Kibble FIFO VBA)
+
+ส่วนนี้เป็น template พร้อมใช้งานสำหรับสร้างไฟล์ทดสอบ `SemiKibble_FIFO_Test.xlsx` ให้สอดคล้องกับ macro `AutoAllocate` ใน `SemiKibbleMVP.bas`
+
+### 9.1 ชีทที่ต้องมี
+สร้างชีทตามชื่อด้านล่างให้ตรงตัวอักษรทุกตัว:
+- `Stock`
+- `Plan_Header`
+- `Plan_Detail`
+- `AllocationLine`
+- `Balance`
+- `Log`
+
+---
+
+### 9.2 หัวคอลัมน์ทั้งหมด
+
+#### Sheet: `Stock` (แถวหัวตาราง = Row 1)
+| Col | Header | ตัวอย่าง | หมายเหตุ |
+|---|---|---|---|
+| A | RowID | STK001 | unique ต่อแถว |
+| B | MFG | 2026-05-01 | วันที่ผลิต |
+| C | EXP | 2026-11-01 | วันหมดอายุ |
+| D | Shift | A | ใช้ตรวจกติกา Shift/MC |
+| E | MC | MC1 | ใช้ตรวจกติกา Shift/MC |
+| F | QtyPCS | 240 | จำนวน PCS ในแถว |
+| G | FifoSeq | 1 | ลำดับ FIFO จากน้อยไปมาก |
+
+#### Sheet: `Plan_Header`
+- Row 1: หัวแผน `Plan1 ... Plan9`
+- Row 2: ป้อนแผนที่ต้องการ allocate (แนะนำป้อนเป็น PCS เช่น 240)
+- Row 3: ระบบจะเขียนค่า Normalized PCS ให้หลังรัน
+
+ตัวอย่างหัวคอลัมน์:
+| Col A | B | C | D | E | F | G | H | I |
+|---|---|---|---|---|---|---|---|---|
+| Plan1 | Plan2 | Plan3 | Plan4 | Plan5 | Plan6 | Plan7 | Plan8 | Plan9 |
+
+#### Sheet: `Plan_Detail`
+ระบบจะเขียนให้อัตโนมัติ:
+- A1 = `Customer`
+- B1..J1 = `Plan1..Plan9`
+- A2 = `AllocatedPCS`
+- B2..J2 = PCS ที่ allocate ได้จริง
+
+#### Sheet: `AllocationLine`
+หัวคอลัมน์:
+| Col | Header |
+|---|---|
+| A | TxnTime |
+| B | Action |
+| C | PlanNo |
+| D | ReceiverRowID |
+| E | DonorRowID |
+| F | MovePCS |
+| G | CaseCount |
+
+#### Sheet: `Balance`
+หัวคอลัมน์ (ระบบเขียนอัตโนมัติ):
+| Col | Header |
+|---|---|
+| A | RowID |
+| B | QtyPCS |
+| C | AllocatedPCS |
+| D | BalancePCS |
+| E | RejectPCS |
+| F | UsablePCS |
+
+#### Sheet: `Log`
+หัวคอลัมน์:
+| Col | Header |
+|---|---|
+| A | TxnTime |
+| B | Level |
+| C | Message |
+
+---
+
+### 9.3 Sample Data (ใช้ทดสอบทีละ Scenario)
+
+> ทุกชุดข้อมูลให้ล้าง `Stock`, `Plan_Header` Row2, `Plan_Detail`, `AllocationLine`, `Balance`, `Log` ก่อนเริ่มรันเคสใหม่
+
+#### Scenario A: 240 PCS allocate success
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 240 | 1 |
+
+`Plan_Header` Row2: Plan1=240, Plan2..Plan9=0
+
+#### Scenario B: 239 PCS reject
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 239 | 1 |
+
+`Plan_Header` Row2: Plan1=240
+
+#### Scenario C: 46+1+1 top-up success
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 230 | 1 |
+| STK002 | 2026-05-01 | 2026-11-01 | A | MC1 | 5 | 2 |
+| STK003 | 2026-05-01 | 2026-11-01 | A | MC1 | 5 | 3 |
+
+`Plan_Header` Row2: Plan1=240
+
+#### Scenario D: 46+1 fail
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 230 | 1 |
+| STK002 | 2026-05-01 | 2026-11-01 | A | MC1 | 5 | 2 |
+
+`Plan_Header` Row2: Plan1=240
+
+#### Scenario E: Shift/MC mismatch fail (ตาม Requirement)
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 230 | 1 |
+| STK002 | 2026-05-01 | 2026-11-01 | B | MC1 | 5 | 2 |
+| STK003 | 2026-05-01 | 2026-11-01 | A | MC2 | 5 | 3 |
+
+`Plan_Header` Row2: Plan1=240
+
+#### Scenario F: Stock 480 + Plan1=240 Plan2=240 Plan3=240 => allocate เฉพาะ 2 แผนแรก
+`Stock`
+| RowID | MFG | EXP | Shift | MC | QtyPCS | FifoSeq |
+|---|---|---|---|---|---:|---:|
+| STK001 | 2026-05-01 | 2026-11-01 | A | MC1 | 480 | 1 |
+
+`Plan_Header` Row2: Plan1=240, Plan2=240, Plan3=240
+
+---
+
+### 9.4 Expected Result ต่อ Scenario
+
+#### A) 240 PCS allocate success
+- `Plan_Detail!B2 (Plan1)` = 240
+- `Balance`: STK001 AllocatedPCS=240, BalancePCS=0
+- `AllocationLine` มี 1 รายการ Action=PLAN MovePCS=240
+
+#### B) 239 PCS reject
+- `Plan_Detail!B2` = 0
+- `Balance`: STK001 RejectPCS=4, UsablePCS=235, AllocatedPCS=0
+- `AllocationLine` ว่าง
+
+#### C) 46+1+1 top-up success
+- `Plan_Detail!B2` = 240
+- `AllocationLine` ควรมี Action=TOPUP_46 อย่างน้อย 2 บรรทัด (จาก STK002 และ STK003)
+- `Balance`:
+  - STK001 ถูกใช้ 230
+  - STK002 ถูกใช้ 5
+  - STK003 ถูกใช้ 5
+
+#### D) 46+1 fail
+- `Plan_Detail!B2` = 0
+- `AllocationLine` ว่าง (ไม่มี top-up ครบ 2 bag)
+- `Balance` ไม่มีการหัก allocation
+
+#### E) Shift/MC mismatch fail (Expected by business rule)
+- หากใช้ strict Shift/MC rule ต้องได้ `Plan_Detail!B2 = 0`
+- `AllocationLine` ว่าง
+- หมายเหตุ: โค้ดปัจจุบันใน `HandleTopUp4647` ตรวจแค่ MFG/EXP จึงอาจผ่านเคสนี้ ต้องเพิ่มเงื่อนไข Shift/MC เพื่อให้ผลตรง requirement
+
+#### F) 480 / 240 / 240 / 240
+- `Plan_Detail`: Plan1=240, Plan2=240, Plan3=0
+- `Balance`: STK001 AllocatedPCS=480, BalancePCS=0
+- `AllocationLine` รวม 2 case เท่านั้น
+
+---
+
+### 9.5 VBA Setup Instruction
+1. เปิด Excel แล้วบันทึกเป็นไฟล์ชนิด `Excel Macro-Enabled Workbook (*.xlsm)`
+2. กด `ALT + F11` เปิด VBA Editor
+3. `Insert > Module`
+4. วางโค้ดทั้งหมดจากไฟล์ `SemiKibbleMVP.bas`
+5. ใน VBA Editor ไปที่ `Tools > References` (ปกติไม่ต้องเพิ่ม reference พิเศษ)
+6. กลับ Excel แล้วสร้าง 6 ชีทชื่อให้ตรง: `Stock`, `Plan_Header`, `Plan_Detail`, `AllocationLine`, `Balance`, `Log`
+7. เติม header ตามหัวข้อ 9.2
+
+---
+
+### 9.6 วิธีรัน `AutoAllocate`
+1. ใส่ข้อมูล `Stock`
+2. ใส่ค่าแผนใน `Plan_Header` แถว 2
+3. กด `ALT + F8`
+4. เลือก macro `AutoAllocate`
+5. กด Run
+6. ตรวจผลใน `Plan_Detail`, `AllocationLine`, `Balance`, `Log`
+
+---
+
+### 9.7 Test Scenario Checklist
+
+ใช้ checklist นี้ทุกครั้ง:
+- [ ] ชื่อชีทครบและสะกดตรง
+- [ ] Header ตรงตาม spec
+- [ ] QtyPCS เป็นตัวเลขจำนวนเต็ม
+- [ ] FifoSeq เรียงถูกต้อง
+- [ ] Plan_Header แถว 2 กรอกเฉพาะแผนที่ทดสอบ
+- [ ] รัน `AutoAllocate` แล้วไม่มี MsgBox error
+- [ ] Plan_Detail ได้ค่าตรง expected
+- [ ] AllocationLine มี/ไม่มีรายการตาม expected
+- [ ] Balance สะท้อน AllocatedPCS / RejectPCS ถูกต้อง
+- [ ] Log มีข้อความ `AutoAllocate completed.` เมื่อจบสำเร็จ
